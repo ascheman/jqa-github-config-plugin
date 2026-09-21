@@ -1,0 +1,90 @@
+name: Sample Build
+run-name: Build for ${{ github.ref }}
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Cut a release'
+        required: false
+        type: boolean
+        default: false
+  schedule:
+    - cron: '0 4 * * 1'
+
+env:
+  GLOBAL_VAR: global-value
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      JOB_VAR: job-value
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        java: ['11', '17', '21']
+        os: [ubuntu-latest, windows-latest]
+        include:
+          - java: '21'
+            os: ubuntu-latest
+            experimental: true
+        exclude:
+          - java: '11'
+            os: windows-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: secret
+    outputs:
+      version: ${{ steps.read-version.outputs.value }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+      - id: read-version
+        name: Read version
+        run: echo "value=1.2.3" >> "$GITHUB_OUTPUT"
+        shell: bash
+        working-directory: ./build
+        env:
+          STEP_VAR: step-value
+      - name: Local action
+        uses: ./.github/actions/local-action
+      - name: Docker action
+        uses: docker://alpine:3.19
+
+  publish:
+    name: Publish
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    uses: octo-org/example/.github/workflows/release.yml@v1
+    with:
+      version: ${{ needs.build.outputs.version }}
+    secrets: inherit

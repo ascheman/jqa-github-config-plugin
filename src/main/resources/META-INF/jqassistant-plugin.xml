@@ -1,0 +1,32 @@
+<jqassistant-plugin xmlns="http://schema.jqassistant.org/plugin/v2.4"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://schema.jqassistant.org/plugin/v2.4 https://schema.jqassistant.org/plugin/jqassistant-plugin-v2.4.xsd"
+                    id="jqa.plugin.githubconfig"
+                    name="jQAssistant GitHub Config Plugin"
+                    version="${project.version}">
+    <description>Provides scanners for GitHub configuration files (workflows; future: dependabot, CODEOWNERS, ...).</description>
+    <model>
+        <class>net.aschemann.jqassistant.plugin.github.config.api.model.GitHubDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.ActionDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.ConcurrencyDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.EnvDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.InputDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.JobDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.MatrixCombinationDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.MatrixDimensionDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.OutputDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.PermissionDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.ReusableWorkflowReferenceDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.ScriptDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.SecretDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.ServiceDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.StepDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.StrategyDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.TriggerDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.WithDescriptor</class>
+        <class>net.aschemann.jqassistant.plugin.github.config.workflow.api.model.WorkflowDescriptor</class>
+    </model>
+    <scanner>
+        <class>net.aschemann.jqassistant.plugin.github.config.impl.scanner.WorkflowScannerPlugin</class>
+    </scanner>
+</jqassistant-plugin>

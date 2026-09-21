@@ -1,0 +1,216 @@
+= jQAssistant GitHub Config Plugin
+:toc: preamble
+:icons: font
+
+A https://jqassistant.org/[jQAssistant] scanner plugin that parses GitHub
+configuration files under a repository's `.github/` directory and projects
+them into the jQAssistant Neo4j store.
+
+The first concrete domain implemented is *GitHub Actions Workflows*
+(`.github/workflows/*.yml`).
+The plugin name (`github-config`) and shared `:GitHub` label leave room for
+future domains such as Dependabot, CODEOWNERS, issue templates, and
+`FUNDING.yml`.
+
+This plugin does *not* analyse Git history, commits, issues, or pull
+requests — that is the responsibility of a separate plugin.
+
+== Build
+
+[source,bash]
+----
+./mvnw -B install
+----
+
+Java 17 source level, tested on JDK 17.
+The Maven wrapper pins Maven 3.9.15.
+
+== Usage
+
+Add the plugin as a dependency of the `jqassistant-maven-plugin`:
+
+[source,xml]
+----
+<plugin>
+  <groupId>com.buschmais.jqassistant</groupId>
+  <artifactId>jqassistant-maven-plugin</artifactId>
+  <version>${jqa.version}</version>
+  <executions>
+    <execution>
+      <id>scan</id>
+      <goals><goal>scan</goal><goal>analyze</goal></goals>
+    </execution>
+  </executions>
+  <dependencies>
+    <dependency>
+      <groupId>net.aschemann.jqassistant.plugins</groupId>
+      <artifactId>jqa-github-config-plugin</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+  </dependencies>
+  <configuration>
+    <scanIncludes>
+      <scanInclude><path>.github</path></scanInclude>
+    </scanIncludes>
+  </configuration>
+</plugin>
+----
+
+== Snapshots from GitHub Packages
+
+Snapshot builds of `main` are published to
+https://github.com/ascheman/jqa-github-config-plugin/packages[GitHub Packages]
+by the `Deploy Snapshot` workflow.
+
+To consume them, add the repository to your `pom.xml` (or `settings.xml`):
+
+[source,xml]
+----
+<repositories>
+  <repository>
+    <id>github-jqa-github-config</id>
+    <name>GitHub Packages: ascheman/jqa-github-config-plugin</name>
+    <url>https://maven.pkg.github.com/ascheman/jqa-github-config-plugin</url>
+    <releases><enabled>true</enabled></releases>
+    <snapshots><enabled>true</enabled></snapshots>
+  </repository>
+</repositories>
+----
+
+GitHub Packages requires authentication even for public packages.
+Add a matching `<server>` entry to `~/.m2/settings.xml`, using a personal
+access token with the `read:packages` scope:
+
+[source,xml]
+----
+<server>
+  <id>github-jqa-github-config</id>
+  <username>ascheman</username>
+  <password>${env.GITHUB_TOKEN}</password>
+</server>
+----
+
+Deployment itself is handled by CI: the `github` profile in `pom.xml`
+activates whenever `GITHUB_TOKEN` is present and redirects the snapshot
+deployment to `https://maven.pkg.github.com/ascheman/jqa-github-config-plugin`.
+
+== Model overview
+
+All nodes share the label `:GitHub`.
+Workflow files additionally carry `:Workflow` and the standard `:File` label
+contributed by jQAssistant's file scanner.
+
+[cols="1,3"]
+|===
+|Label |Purpose
+
+|`:GitHub:Workflow`
+|A scanned `.github/workflows/*.yml` file. Properties: `name`, `runName`.
+
+|`:GitHub:Trigger`
+|One per `on:` event (e.g. `push`, `pull_request`, `schedule`).
+ Properties: `event`, `branches[]`, `tags[]`, `paths[]`, `types[]`,
+ `cron`, ... and their `*Ignore` variants.
+
+|`:GitHub:Job`
+|A `jobs.<id>` entry.
+ Properties: `id`, `name`, `runsOn`, `ifCondition`, `environment`,
+ `timeoutMinutes`, `continueOnError`.
+
+|`:GitHub:Step`
+|A step in a job.
+ Properties: `id`, `name`, `index`, `ifCondition`, `shell`,
+ `workingDirectory`, `continueOnError`, `timeoutMinutes`.
+ [NOTE]
+ ====
+ Step / job order is carried by the `index` property, not by the order in
+ which the relationships appear (XO does not preserve list order).
+ ====
+
+|`:GitHub:Action`
+|A marketplace, local, or docker action referenced by `uses:` on a step.
+ Properties: `uses`, `owner`, `repoOrName`, `ref`, `kind`
+ (`marketplace` / `local` / `docker`).
+
+|`:GitHub:Script`
+|A `run:` block. Properties: `content`, `shell`.
+
+|`:GitHub:Strategy` / `:GitHub:MatrixDimension` / `:GitHub:MatrixCombination`
+|Job matrix configuration. `MatrixCombination` is used for both `include:`
+ and `exclude:` entries.
+
+|`:GitHub:Input` / `:GitHub:Output` / `:GitHub:Secret`
+|Declared / passed inputs, outputs, and secrets
+ (workflow_call, workflow_dispatch, job-level outputs).
+
+|`:GitHub:EnvironmentVariable` / `:GitHub:WithParameter`
+|`env:` and `with:` key-value entries.
+
+|`:GitHub:Permission`
+|One node per scope (or one with `scope=all` for shorthand strings).
+
+|`:GitHub:Concurrency`
+|Workflow-level `concurrency:` block.
+
+|`:GitHub:ReusableWorkflowReference`
+|A job whose `uses:` references another workflow.
+ Properties: `uses`, `owner`, `repo`, `path`, `ref`, `kind`
+ (`local` / `external`).
+
+|`:GitHub:Service`
+|Service container in a job.
+|===
+
+=== Relationships
+
+[source]
+----
+(Workflow)-[:HAS_TRIGGER|HAS_JOB|HAS_INPUT|HAS_OUTPUT|HAS_SECRET
+           |HAS_ENV|HAS_PERMISSION|HAS_CONCURRENCY]->(...)
+(Job)-[:HAS_STEP]->(Step)
+(Job)-[:NEEDS]->(Job)
+(Job)-[:HAS_STRATEGY|HAS_ENV|HAS_PERMISSION|HAS_OUTPUT|HAS_SERVICE]->(...)
+(Job)-[:USES_REUSABLE_WORKFLOW]->(ReusableWorkflowReference)
+(Job)-[:HAS_WITH]->(WithParameter)
+(Job)-[:PASSES_SECRET]->(Secret)
+(Step)-[:USES_ACTION]->(Action)
+(Step)-[:RUNS_SCRIPT]->(Script)
+(Step)-[:HAS_WITH|HAS_ENV]->(...)
+(Strategy)-[:HAS_MATRIX_DIMENSION|HAS_MATRIX_INCLUDE|HAS_MATRIX_EXCLUDE]->(...)
+----
+
+== Sample queries
+
+[source,cypher]
+----
+// All distinct actions used across all workflows
+MATCH (:Workflow)-[:HAS_JOB]->(:Job)-[:HAS_STEP]->(:Step)-[:USES_ACTION]->(a:Action)
+RETURN a.uses, count(*) AS occurrences ORDER BY occurrences DESC;
+
+// Jobs that use a matrix strategy
+MATCH (j:Job)-[:HAS_STRATEGY]->(:Strategy)-[:HAS_MATRIX_DIMENSION]->(d)
+RETURN j.id, collect(d.name) AS dimensions;
+
+// Reusable workflow callers
+MATCH (j:Job)-[:USES_REUSABLE_WORKFLOW]->(r)
+RETURN j.id, r.uses;
+
+// Steps that run inline scripts
+MATCH (j:Job)-[:HAS_STEP]->(s:Step)-[:RUNS_SCRIPT]->(sc:Script)
+RETURN j.id, s.name, sc.shell;
+----
+
+== Limitations / known constraints
+
+* SnakeYAML is pinned to *1.33* because jQA 1.11.x ships an older Jackson
+  YAML that calls APIs removed in SnakeYAML 2.x.
+* `on:` is parsed by SnakeYAML 1.x as the boolean key `true` (YAML 1.1
+  rule). The parser handles both forms transparently.
+* The model is intentionally an MVP — extend as needed.
+  Suggested next steps: capture `defaults.run`, container `image:` for
+  jobs, environment URL, multi-line `runs-on` selectors as a list rather
+  than a comma-joined string.
+
+== License
+
+GNU General Public License, v3.

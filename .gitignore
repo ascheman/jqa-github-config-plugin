@@ -1,0 +1,15 @@
+# JetBrains IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Maven
+target/
+
+# Local credentials for GitHub Packages deployment (see README)
+settings.xml
