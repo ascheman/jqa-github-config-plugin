@@ -6,7 +6,7 @@
 
     <groupId>net.aschemann.jqassistant.plugins</groupId>
     <artifactId>jqa-github-config-plugin</artifactId>
-    <version>0.1.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
 
     <name>jQAssistant GitHub Config Plugin</name>
     <description>Scanner for GitHub configuration files (.github/workflows/*.yml; future: dependabot, CODEOWNERS, ...) for jQAssistant</description>
