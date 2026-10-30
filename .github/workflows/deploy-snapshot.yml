@@ -32,7 +32,18 @@ jobs:
           # GitHub Actions, so no extra secrets are needed.
           server-id: github
 
+      - name: Resolve project version
+        id: ver
+        # A release commit carries a non-SNAPSHOT version, and the `github-ci`
+        # profile only declares a <snapshotRepository>. Deploying such a version
+        # fails with "repository element was not specified in the POM inside
+        # distributionManagement" - on exactly the commit the release tag points
+        # at. Skip instead of failing: a job called "deploy snapshot" has
+        # nothing to do for a release.
+        run: echo "version=$(./mvnw -q help:evaluate -Dexpression=project.version -DforceStdout)" >> "$GITHUB_OUTPUT"
+
       - name: Deploy snapshot to GitHub Packages
+        if: endsWith(steps.ver.outputs.version, '-SNAPSHOT')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./mvnw --batch-mode --no-transfer-progress clean deploy

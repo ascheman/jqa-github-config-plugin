@@ -186,12 +186,45 @@
         </dependency>
     </dependencies>
 
+    <!--
+      SNAPSHOTs go to the Central Portal snapshot repository. It is readable
+      anonymously, so anyone can consume a SNAPSHOT by adding
+
+          https://central.sonatype.com/repository/maven-snapshots/
+
+      as a repository - no credentials, no token handed out. GitHub Packages
+      answers 401 even for public packages, which made every consumer need
+      their own token; that is why it is no longer used here.
+
+      Deploying needs the Central Portal user token in a <server> with this id,
+      and SNAPSHOT publishing enabled for the namespace in the Portal (without
+      that the upload is rejected with 403, not 401).
+
+      Releases are not deployed from here: the `release` profile overrides both
+      elements with a local staging directory that JReleaser uploads.
+    -->
+    <distributionManagement>
+        <snapshotRepository>
+            <id>central-snapshots</id>
+            <name>Central Portal Snapshots</name>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <profiles>
         <profile>
-            <id>github</id>
+            <!--
+              CI keeps publishing SNAPSHOTs to GitHub Packages, unchanged.
+              Activated by GITHUB_ACTIONS, which GitHub Actions sets and a local
+              shell does not - unlike GITHUB_TOKEN, which is also exported by
+              the local direnv setup and would therefore hijack local deploys.
+              A profile's distributionManagement overrides the project-level one
+              for the same element, so this wins inside Actions only.
+            -->
+            <id>github-ci</id>
             <activation>
                 <property>
-                    <name>env.GITHUB_TOKEN</name>
+                    <name>env.GITHUB_ACTIONS</name>
                 </property>
             </activation>
             <distributionManagement>
@@ -233,6 +266,17 @@
                     <id>staging</id>
                     <url>file://${staging.repository.directory}</url>
                 </repository>
+                <!--
+                  Also the snapshot element: a profile's distributionManagement
+                  is merged with the one outside it element by element, so
+                  without this a -Prelease deploy on a still-SNAPSHOT version
+                  would fall through to the snapshot repository and leave the
+                  staging directory empty.
+                -->
+                <snapshotRepository>
+                    <id>staging</id>
+                    <url>file://${staging.repository.directory}</url>
+                </snapshotRepository>
             </distributionManagement>
             <build>
                 <plugins>

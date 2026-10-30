@@ -41,6 +41,15 @@ deploy:
       sonatype:
         active: ALWAYS
         url: https://central.sonatype.com/api/v1/publisher
+        # Upload and wait for VALIDATED, but do NOT publish. Publishing to
+        # Central is irreversible - a version can never be replaced or removed,
+        # only superseded - so it gets its own deliberate step. The default
+        # would be FULL, which uploads and publishes in one go. Publish with
+        #   JRELEASER_DEPLOY_MAVEN_MAVENCENTRAL_STAGE=PUBLISH
+        #   JRELEASER_DEPLOY_MAVEN_MAVENCENTRAL_DEPLOYMENT_ID=<id>
+        # (the system-property spelling is lowercased by Env.sysKey(), so
+        # -Djreleaser.deploy.maven.mavenCentral... does not match).
+        stage: UPLOAD
         # The build already produced .asc signatures; applyMavenCentralRules
         # verifies that sources, javadoc, signatures and POM metadata are all
         # present before anything is uploaded.
